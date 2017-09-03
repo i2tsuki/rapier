@@ -10,6 +10,7 @@ extern crate notify_rust;
 
 use std::process;
 use std::rc::Rc;
+use std::{thread, time};
 
 use github_rs::client::Github;
 
@@ -22,58 +23,61 @@ fn main() {
     let app = app::app();
 
     let client = Github::new(app.token).unwrap();
-    let notifications = client.get().notifications().execute();
-    match notifications {
-        Ok((_headers, _status, json)) => {
-            if let Some(json) = json {
-                let notifications: Vec<notification::Notification> =
-                    match serde_json::from_value(json) {
-                        Ok(n) => (n),
-                        Err(e) => {
-                            println!("{}", e);
-                            process::exit(1);
-                        }
-                    };
-                for notification in notifications {
-                    let notification = Rc::new(notification);
-                    println!("{}", notification.id);
-                    let handle = match notify::new(
-                        &app,
-                        notification.repository.full_name.clone(),
-                        notification.subject.title.clone(),
-                    ) {
-                        Ok(handle) => handle,
-                        Err(e) => {
-                            println!("{}", e);
-                            process::exit(1);
-                        }
-                    };
-                    handle.wait_for_action(|action| {
-                        match action {
-                            "read" => {
-                                // Todo:: Implementation of notification_as_read
-                                // notification_as_read();
+    loop {
+        let notifications = client.get().notifications().execute();
+        match notifications {
+            Ok((_headers, _status, json)) => {
+                if let Some(json) = json {
+                    let notifications: Vec<notification::Notification> =
+                        match serde_json::from_value(json) {
+                            Ok(n) => (n),
+                            Err(e) => {
+                                println!("{}", e);
+                                process::exit(1);
                             }
-                            "open" => {
-                                match utils::xdg_open(
-                                    utils::human_url(notification.subject.url.clone()),
-                                ) {
-                                    Ok(_) => (),
-                                    Err(e) => {
-                                        println!("{}", e);
-                                        process::exit(1);
-                                    }
-                                };
+                        };
+                    for notification in notifications {
+                        let notification = Rc::new(notification);
+                        println!("{}", notification.id);
+                        let handle = match notify::new(
+                            &app,
+                            notification.repository.full_name.clone(),
+                            notification.subject.title.clone(),
+                        ) {
+                            Ok(handle) => handle,
+                            Err(e) => {
+                                println!("{}", e);
+                                process::exit(1);
                             }
-                            _ => println!("received: {}", action),
-                        }
-                    });
+                        };
+                        handle.wait_for_action(|action| {
+                            match action {
+                                "read" => {
+                                    // Todo:: Implementation of notification_as_read
+                                    // notification_as_read();
+                                }
+                                "open" => {
+                                    match utils::xdg_open(
+                                        utils::human_url(notification.subject.url.clone()),
+                                    ) {
+                                        Ok(_) => (),
+                                        Err(e) => {
+                                            println!("{}", e);
+                                            process::exit(1);
+                                        }
+                                    };
+                                }
+                                _ => println!("received: {}", action),
+                            }
+                        });
+                    }
                 }
             }
+            Err(e) => {
+                println!("{}", e);
+                process::exit(1);
+            }
         }
-        Err(e) => {
-            println!("{}", e);
-            process::exit(1);
-        }
+        thread::sleep(time::Duration::from_millis(app.interval));
     }
 }
