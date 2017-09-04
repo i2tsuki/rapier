@@ -11,5 +11,6 @@ serde_derive = "1.0.11"
 serde_json = "1.0.2"
 
 [dependencies.github-rs]
+git = "https://github.com/kizkoh/github-rs.git"
+branch = "notifications"
 optional = false
-path = "/home/kizkoh/repo/github/rapier/github-rs"
